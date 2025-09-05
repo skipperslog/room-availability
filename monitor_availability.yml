@@ -1,0 +1,55 @@
+name: Monitor Accommodation Availability
+
+on:
+  schedule:
+    # Run every 5 minutes. GitHub Actions uses UTC; adjust if needed.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    # Allow manual triggering of the workflow.
+    inputs: {}
+
+jobs:
+  check_availability:
+    runs-on: ubuntu-latest
+    env:
+      # Configuration for the monitoring script. Update as needed.
+      TARGET_URL: https://playandco.airhost.co/en/houses/612389
+      START_DATE: 2025-10-29
+      END_DATE: 2025-11-02
+      ROOM_ID: '633845'
+      DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      # Optionally set STOP_ON_AVAILABLE to any non-empty value to stop after first notification.
+      # STOP_ON_AVAILABLE: '1'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # Restore previously cached state file so notifications are only sent on changes.
+      - name: Restore availability state
+        uses: actions/cache@v3
+        with:
+          path: availability_state.json
+          key: ${{ runner.os }}-availability-state
+          restore-keys: ${{ runner.os }}-availability-state
+
+      - name: Run monitoring script
+        run: python monitor_availability.py
+
+      # Save the updated state file using a unique key based on the workflow run ID.
+      - name: Cache updated state
+        if: always()
+        uses: actions/cache@v3
+        with:
+          path: availability_state.json
+          key: ${{ runner.os }}-availability-state-${{ github.run_id }}
